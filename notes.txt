@@ -1,0 +1,233 @@
+ MsfTimeLib Version 2.6.0 SUITABLE FOR THE ESP8266 WIFI MODULE
+
+ A class to decode the MSF Time Signal from Anthorn, Cumbria, UK
+ Inspired by Richard Jarkman's original MSFTime library but with a different
+ approach. The makeTime() function is borrowed from the Time library by Michael Margolis
+ You are free to use this library as you see fit as long as this text remains with it!
+ 
+ Copyright 2014, 2015 & 2016 Phil Morris
+
+ /* TIME DATA AVAILABLE AT THE START OF THE NEW MINUTE */
+ 
+ The variables available to the user are:
+
+ uint8_t TimeAvailable		// set when time and date data has been decoded successfully
+							// at the exact start of the 500 ms START pulse so, if
+							// "timeAvailable" is "true", set the RTC or Time library "NOW"
+ uint8_t TimeReceived		// set during the final 500ms of the current minute
+ uint8_t ParityResult		// the result of the Parity check (see below)
+ uint8_t Bst				// 1 = BST, 0 = GMT
+ uint8_t BstSoon			// 1 = BST imminent
+ uint16_t DutPos		    // DUT1 Positive value in ms
+ uint16_t DutNeg		    // DUT1 Negative value in ms
+ uint8_t NumSeconds		 	// the current number of seconds received
+ int8_t LeapSecond		 	// normally "0" but will change to either "-1" or "1" if a leap
+							// second is deducted/added
+ unit8_t rtcBuffer[7)		// Buffer containing the time values for setting an RTC in BCD*
+ time_t TimeTime		 	// a Time library time_t compatible for Time/RTC library use
+ 
+ * the rtc buffer is filled in this order which is the DS1307 & DS3231 format:
+ 
+ rtcBuffer[0] = 0
+ rtcBuffer[1] = Minute
+ rtcBuffer[2] = Hour
+ rtcBuffer[3] = Day
+ rtcBuffer[4] = Date
+ rtcBuffer[5] = Month
+ rtcBuffer[6] = Year (two digits)
+ 
+ // FUNCTIONS
+ uint8_t msf.bcdToDec(uint8_t _bcd) 	//is provided to convert the rtcBuffer values to Decimal numbers
+ uint32_t msf.freeMem()					// returns a long containing the amount of free DRAM memory
+ 
+// MACROS
+ // a simple replacement for multiple Serial,print statements to add a "0" before a number
+ // x = number, y = comparison value. For use with BCD Bytes use y = 10. For straight HEX
+ // Bytes use y = 16 to split the Byte.
+ 
+ MSF_PRINT(x,y) Serial.print(x<y?"0":"");\Serial.print(x,HEX);
+ 
+ Example: MSF_PRINT(9,10);	// prints "09" as 9 (x) is less than 10 (y)
+
+ // does the same as MSF_PRINT for the Streaming library.
+ MSF_PRINTS(x,y) (x<y?"0":"") << _HEX(x)
+ 
+ Example: Serial << MSF_PRINTS(9,10);	// prints "09" as 9 (x) is less than 10 (y)
+
+ /* STARTING/CONFIGURING THE LIBRARY */
+ 
+ Constants available for configuration are:
+
+ MSF_PULSE_LOW			 	// MSF "off" pulse is LOW
+ MSF_PULSE_HIGH			 	// MSF "off" pulse is HIGH
+ MSF_PAD_0MS				// add 0 ms to the input pulses
+ MSF_PAD_5MS				// add 5 ms to the input pulses
+ MSF_PAD_10MS				// add 10 ms to the input pulses
+ MSF_PAD_15MS				// add 15 ms to the input pulses
+ MSF_PAD_20MS				// add 20 ms to the input pulses
+ MSF_PAD_25MS				// add 25 ms to the input pulses
+ MSF_PAD_30MS				// add 30 ms to the input pulses
+ 
+ // Byte offsets for the rtcBuffer BCD data
+#define MSF_YEAR	6		// pointer to the year Byte of the rtcBuffer
+#define MSF_MONTH	5		// pointer to the month Byte of the rtcBuffer
+#define MSF_DATE	4		// pointer to the date Byte of the rtcBuffer
+#define MSF_DAY		3		// pointer to the day Byte of the rtcBuffer
+#define MSF_HOUR	2		// pointer to the hour Byte of the rtcBuffer
+#define MSF_MINUTE	1		// pointer to the minute Byte of the rtcBuffer
+#define MSF_SECOND	0		// pointer to the second Byte of the rtcBuffer
+
+Example: uint8_t = msf.bcdToDec(msf.rtcBuffer[MSF_DATE]); 	// provides the decimal value
+															// of the date Byte of the rtcBuffer
+ 
+ Constants available for information (after the "begin" statement):
+ 
+ MSF_BOARD_TYPE				// returns the Arduino board type e.g. "UNO"
+ MSF_AVR_TYPE				// returns a string of the AVR type if defined e.g. "ATmega328(P)"
+ MSF_INT_PINS				// returns the number of interrupt pins on the sefined AVR device
+ 
+ The library is pre-configured as "msf" but you can create your own instance if you like:
+ 
+ MsfTimeLib myMsf;
+ 
+ AVR interrupt pin assignments:
+ 
+ Board			int.0	int.1	int.2	int.3	int.4	int.5
+ Uno, Ethernet	2		3	 	 	 	 
+ Mega2560		2		3		21		20		19		18
+ ATmega1284		10		11		3
+ 
+ ESP8266 interrupt number = GPIOx pin number (except GPIO16).
+
+ To start MsfTimeLib:
+ 
+ uint8_t =  begin(Interrupt Number, Padding Time, MSF Polarity, PON Pin, LED Pin);
+ 
+ The default values are <MSF Polarity> = HIGH, <PON Pin> = 0, <LED Pin> = 0
+ 
+ msf.begin(uint8_t _intNum, int8_t _padding);
+ msf.begin(uint8_t _intNum, int8_t _padding, uint8_t _carrierOff);
+ msf.begin(uint8_t _intNum, int8_t _padding, uint8_t _carrierOff, uint8_t _ponPin);
+ msf.begin(uint8_t _intNum, int8_t _padding, uint8_t _carrierOff, uint8_t _ponPin, uint8_t _ledPin);
+
+ <Interrupt Number>:	// The default interrupt number as assigned by the variant file for
+						// The AVR or board. See table above
+ <Padding Time>			// The number of milli seconds to add to the incoming pulse if pulses are too short
+ <MSF Polarity>			// The level of the Carrier OFF signal from the MSF receiver, HIGH or LOW, can be
+						// MSF_PULSE_LOW or MSF_PULSE_HIGH
+ <PON Pin>				// <optional> a pin that can be used to turn the MSF receiver ON/OFF
+						// The default is ON (LOW)
+ <LED Pin>				// <optional> a pin that can be attached to a LED (with resistor) to show the MSF pulses
+
+ Padding:
+
+ The library requires that MSF pulses are not less tham 100ms, 200ms, 300ms and 500ms
+ In the unlikely event that your MSF receiver outputs pulses that are SHORTER than the required
+ pulses, you can add padding in ms to make up the shortfall. The symptoms of "short" pulses is
+ dropped seconds even when the signal is perfect.
+ 
+ Padding Time definitions:
+
+ MSF_PAD_0MS
+ MSF_PAD_5MS
+ MSF_PAD_10MS
+ MSF_PAD_15MS
+ MSF_PAD_20MS
+ MSF_PAD_25MS
+ MSF_PAD_30MS
+
+ uint8_t begin() returns the digital pin number that the interrupt is assigned to or 0 if all is not well.
+ 
+ 0 will be returned if the interrupt number is invalid for the AVR type. For instance, trying to
+ use interrupt number 16 on an ESP8266 device will return 0 as that interrupt does not exist.
+ Upon successful starting of the library the following data is also available:
+ 
+ MSF_BOARD_TYPE		// example value "UNO/NANO/PRO MINI"
+ MSF_AVR_TYPE		// example value "ATmega8/48/88/168/328(P)" (AVR family)
+ MSF_INT_PINS		// example value 2 (number of interrupt pins)
+
+ Use msf.RxON(uint8_t); to switch the receiver ON/OFF, LOW = ON, HIGH = OFF, the default is LOW
+ 
+ Use uint8_t = msf.RxIsOn() to return the current state of the PON Pin.
+
+ To detect when valid time is available use the msf.TimeAvailable flag which is set within a few microseconds
+ of the start of the new minute which is when you synchronise the time:
+
+	if(msf.TimeAvailable)
+	{
+		/* your code goes here */
+		msf.TimeAvailable = 0;	// YOU MUST CLEAR THE FLAG
+	}
+	
+ PLEASE NOTE: As the correct time from the MSF transmitter is only available at the start
+ of the new minute it is not possible to use the setSyncProvider() function of the Time library
+ TimeTime is provided for manual setting of the Time library using the setTime(time_t) function like this:
+
+ For the Time library:
+ 
+ 	if(msf.TimeAvailable)
+	{
+		setTime(msf.TimeTime);
+		msf.TimeAvailable = 0;	// YOU MUST CLEAR THE FLAG
+	}
+	
+ or for a RTC device using the Wire library:
+ 
+ 	if(msf.TimeAvailable)
+	{
+		Wire.beginTransmission(<RTC I2C address>);
+		Wire.write(0);	// the first (seconds) register
+		for(uint8_t x;x<7;x++)
+		{
+			Wire.write(msf.rtcBuffer[x]);
+		}
+		Wire.endTransmission();
+		msf.TimeAvailable = 0;	// YOU MUST CLEAR THE FLAG
+	}
+
+ IF msf.TimeAvailable IS NOT SEEN use msf.TimeReceived to aid DEBUGGING//
+ 
+ msf.TimeReceived is also available as a warning that the time will change. It is set to "1"
+ during the final 500ms of the minute if the end of frame marker has been received. Parity is also checked
+ so you can see why TimeAvailable is not being set:
+ 
+ if(msf.TimeReceived) Serial.println(msf.ParityResult);
+ 
+ msf.ParityReult values:
+ 
+ 0	Parity Good, no problems
+ 1	Year Data Parity Error
+ 2	Month Data Parity Error
+ 3	Weekday Parity Error
+ 4	Time Data Parity Error
+
+ /* CONSIDERATIONS */
+ 
+ The MSF signal is NOT guaranteed to be available 24/7/365. Official planned outages are detailed on the
+ National Physical Laboratory website at:
+ 
+ http://www.npl.co.uk/science-technology/time-frequency/products-and-services/time/msf-outages
+ 
+ In addition to the planned outages faults can occur which means that MSF time should never be relied upon
+ as the sole time source. Common practice makes use of a RTC (Real Time Clock) module which would be used
+ as the actual time source. The RTC would be sysnchronised with the MSF time at regular intervals.
+ 
+ I DO NOT recommend the DS1307 RTC device as it is far too inaccurate. The best device is the DS3231 RTC.
+ 
+ During planned outages, which normally take place during daylight hours, the MSF transmitter may still output
+ a carrier which will almost certainly be interrupted by either random pulses or interference. It is possible
+ that enough pulses may be detected and decoded by the MSF receiver and the MsfTimeLib library to provide
+ valid time data BUT this time data will almost certainly be incorrect e.g. the wrong time and or date can be
+ decoded! It has been known for the MSF station to transmit incorrect time and date information during outages.
+ 
+ It is therefore not a good idea to try and synchronise the RTC with MSF time during daylight hours. I suggest
+ scheduling synchronisation to begin at 01:00 hours (the time being taken from the RTC). The MSF time can then
+ be sampled every minute until a valid time has been received and the RTC has been synchronised.
+ 
+ The msf.BstSoon flag should be set at 01:59 on the applicable morning and it will remain in force for 61 minutes
+ until 02:00 when the msf.Bst flag will either be set true or rest to false.
+ 
+ If msf.BstSoon is true, BST (British Sumer Time) is due at 02:00 so, prepare to synchronise again at 02:00
+ when BST takes effect. At 02:00 start the MSF/RTC synchronisation again until msf.Bst is true or, if BST
+ is ending until msf.Bst is false. BST starts at 02:00 on the morning of the last Sunday in March and ends
+ at 02:00 on the morning of the last Sunday in October.
